@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { useMemo, useState, useEffect } from "react";
 
 const SUBTESTS = [
@@ -13,55 +14,57 @@ const SUBTESTS = [
   { key: "SYM", label: "Symboles", index: "IVT" },
 ];
 
-// === Calcul d'âge auto ===
-function computeAge(dobStr, testStr) {
-  const toDate = (s) => {
-    if (!s) return null;
-    const parts = s.split(/[-/]/).map((p) => parseInt(p, 10));
-    if (parts.length === 3) {
-      let y, m, d;
-      if (parts[0] > 31) {
-        y = parts[0];
-        m = parts[1] - 1;
-        d = parts[2];
-      } else if (parts[2] > 31) {
-        y = parts[2];
-        m = parts[1] - 1;
-        d = parts[0];
-      } else {
-        return null;
-      }
-      const dt = new Date(y, m, d);
-      return Number.isNaN(dt.getTime()) ? null : dt;
-    }
-    const dt = new Date(s);
-    return Number.isNaN(dt.getTime()) ? null : dt;
-  };
-
-  const dob = toDate(dobStr);
-  const test = toDate(testStr) || new Date();
-  if (!dob) return { years: 0, months: 0, valid: false };
-
-  let y = test.getFullYear() - dob.getFullYear();
-  let m = test.getMonth() - dob.getMonth();
-  let d = test.getDate() - dob.getDate();
-  if (d < 0) m -= 1;
-  if (m < 0) {
-    y -= 1;
-    m += 12;
+/** Convertit "" | "yyyy-mm-dd" | "dd-mm-yyyy" -> "yyyy-mm-dd" ou "" */
+function toISO(d) {
+  if (!d) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d; // input type="date"
+  if (/^\d{2}-\d{2}-\d{4}$/.test(d)) {         // saisie manuelle jj-mm-aaaa
+    const [dd, mm, yyyy] = d.split("-");
+    return `${yyyy}-${mm}-${dd}`;
   }
-  if (y < 0) return { years: 0, months: 0, valid: false };
-  return { years: y, months: m, valid: true };
+  return "";
+}
+
+/** Calcule un âge exact en années / mois / jours (toujours avec "days") */
+function computeAge(dobRaw, testRaw) {
+  const dobISO = toISO(dobRaw);
+  const testISO = toISO(testRaw);
+
+  const base = { valid: false, years: 0, months: 0, days: 0 };
+  if (!dobISO || !testISO) return base;
+
+  const birth = new Date(dobISO + "T00:00:00");
+  const test  = new Date(testISO + "T00:00:00");
+  if (Number.isNaN(birth.getTime()) || Number.isNaN(test.getTime()) || test < birth) {
+    return base;
+  }
+
+  let years  = test.getFullYear() - birth.getFullYear();
+  let months = test.getMonth() - birth.getMonth();
+  let days   = test.getDate()  - birth.getDate();
+
+  if (days < 0) {
+    // emprunte le nombre de jours du mois précédent la date de test (gère bissextiles)
+    const daysInPrevMonth = new Date(test.getFullYear(), test.getMonth(), 0).getDate();
+    days += daysInPrevMonth;
+    months -= 1;
+  }
+  if (months < 0) {
+    months += 12;
+    years -= 1;
+  }
+
+  return { valid: true, years, months, days };
 }
 
 export default function App() {
   const [dossier, setDossier] = useState({ code: "", dob: "", testDate: "" });
   const [notes, setNotes] = useState({}); // ex : { SIM: "12", ... }
 
-  // âge auto
+  // âge auto (recalcule uniquement quand les dates changent)
   const age = useMemo(
     () => computeAge(dossier.dob, dossier.testDate),
-    [dossier]
+    [dossier.dob, dossier.testDate]
   );
 
   // sommes par indice
@@ -74,7 +77,7 @@ export default function App() {
     return sums;
   }, [notes]);
 
-  // QIT provisoire (simple somme)
+  // QIT provisoire (simple somme – placeholder)
   const qitProvisoire = useMemo(() => {
     return SUBTESTS.reduce((acc, st) => {
       const v = parseInt(notes[st.key], 10);
@@ -146,8 +149,8 @@ export default function App() {
           <div className="md:col-span-3 text-sm opacity-80">
             Âge (auto) :{" "}
             <b>
-              {age.valid
-                ? `${age.years} ans ${age.months} mois`
+              {age?.valid
+                ? `${age?.years ?? 0} ans ${age?.months ?? 0} mois ${age?.days ?? 0} jours`
                 : "—"}
             </b>
           </div>
@@ -178,7 +181,7 @@ export default function App() {
                   <option key={n} value={String(n)}>
                     {n}
                   </option>
-      ))}
+                ))}
               </select>
             </div>
           ))}
@@ -198,14 +201,10 @@ export default function App() {
         <h2 className="text-xl font-semibold mb-3">Résumé</h2>
         <p className="leading-7">
           QIT provisoire : <b>{qitProvisoire}</b>
-          <span className="opacity-70">
-            {" "}
-            — (ce n’est pas la conversion officielle)
-          </span>
+          <span className="opacity-70"> — (ce n’est pas la conversion officielle)</span>
         </p>
         <p className="text-sm opacity-70">
-          Remarque : la conversion <i>officielle</i> (Annexes A/B) sera ajoutée
-          plus tard.
+          Remarque : la conversion <i>officielle</i> (Annexes A/B) sera ajoutée plus tard.
         </p>
       </section>
     </div>

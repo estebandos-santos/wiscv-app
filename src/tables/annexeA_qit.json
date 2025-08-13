@@ -1,0 +1,21 @@
+{
+  "id": "all_ages_qit",
+  "label": "Annexe A — QIT (tous âges)",
+  "minMonths": 0,
+  "maxMonths": 240,
+
+  "QIT": {
+    "165": 105
+  },
+
+  "ICV": {},
+  "IVS": {},
+  "IRF": {},
+  "IMT": {},
+  "IVT": {},
+  "IC90": {
+    "QIT": {
+      "105": { "lo": 97, "hi": 113 }
+    }
+  }
+}
